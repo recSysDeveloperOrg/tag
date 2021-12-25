@@ -14,9 +14,9 @@ var (
 )
 
 const (
-	CollectionTag            = "tag"
-	CollectionTagUser        = "tag_user"
-	CollectionTagMovie       = "tag_movie"
+	CollectionTag      = "tag"
+	CollectionTagUser  = "tag_user"
+	CollectionTagMovie = "tag_movie"
 )
 
 func GetClient() *mongo.Database {
