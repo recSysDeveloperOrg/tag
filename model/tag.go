@@ -94,8 +94,8 @@ func (*TagDao) IncMovieTag(ctx context.Context, movieID, tagID string) error {
 		return err
 	}
 	if _, err := GetClient().Collection(CollectionTagMovie).UpdateOne(ctx, bson.D{{"movie_id", movieObjectID},
-		{"tag_id", tagObjectID}}, bson.D{{"$inc", bson.D{{"tagged_times", 1},
-		{"updated_at", time.Now().Unix()}}}},
+		{"tag_id", tagObjectID}}, bson.D{{"$inc", bson.D{{"tagged_times", 1}}},
+		{"$set", bson.D{{"updated_at", time.Now().Unix()}}}},
 		options.Update().SetUpsert(true)); err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (*TagDao) InsertUserTags(ctx context.Context, userID, tagID, movieID string
 
 	if _, err := GetClient().Collection(CollectionTagUser).UpdateOne(ctx, bson.D{{"user_id", userObjectID},
 		{"tag_id", tagObjectID}}, bson.D{{"$push", bson.D{{"movie_ids", movieObjectID}}},
-		{"updated_at", time.Now().Unix()}},
+		{"$set", bson.D{{"updated_at", time.Now().Unix()}}}},
 		options.Update().SetUpsert(true)); err != nil {
 		return false, err
 	}
@@ -195,7 +195,7 @@ func (d *TagDao) QueryTagUsersSortByUseTimes(ctx context.Context, userID string,
 	}
 	var tagUsers []*TagUser
 	match := bson.D{{"$match", bson.D{{"user_id", userObjectID}}}}
-	addField := bson.D{{"$addFields", bson.D{{"use_times", bson.D{{"$size", "movie_ids"}}}}}}
+	addField := bson.D{{"$addFields", bson.D{{"use_times", bson.D{{"$size", "$movie_ids"}}}}}}
 	sort := bson.D{{"$sort", bson.D{{"use_times", -1}}}}
 	limit := bson.D{{"$limit", kMax}}
 	c, err := GetClient().Collection(CollectionTagUser).Aggregate(ctx,
