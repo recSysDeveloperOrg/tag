@@ -9,7 +9,7 @@ message BaseResp {
     string err_msg = 2;
 }
 message Tag {
-    int64 id = 1;
+    string id = 1;
     string content = 2;
     int64 updated_at = 3;  // 对于用户来说，这是用户最后一次使用这个tag的时间，对于电影来说，这是电影最后一次被打这个tag的时间
     int64 n_times = 4; // 对于用户来说，这是用户使用这个tag的次数，对于电影来说，这是电影被打上这个tag的次数
