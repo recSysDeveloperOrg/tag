@@ -22,8 +22,9 @@ type Tag struct {
 type TagMovie struct {
 	MovieID     string `bson:"movie_id"`
 	TagID       string `bson:"tag_id"`
-	UpdatedAt   int64  `bson:"updated_at"`
-	TaggedTimes int64  `bson:"tagged_times"`
+	Content     string
+	UpdatedAt   int64 `bson:"updated_at"`
+	TaggedTimes int64 `bson:"tagged_times"`
 }
 
 type TagUser struct {
@@ -131,7 +132,8 @@ func (*TagDao) InsertUserTags(ctx context.Context, userID, tagID, movieID string
 	}
 
 	if _, err := GetClient().Collection(CollectionTagUser).UpdateOne(ctx, bson.D{{"user_id", userObjectID},
-		{"tag_id", tagObjectID}}, bson.D{{"$push", bson.D{{"movie_ids", movieObjectID}}}},
+		{"tag_id", tagObjectID}}, bson.D{{"$push", bson.D{{"movie_ids", movieObjectID}}},
+		{"updated_at", time.Now().Unix()}},
 		options.Update().SetUpsert(true)); err != nil {
 		return false, err
 	}
@@ -148,28 +150,20 @@ func (d *TagDao) QueryMovieTag(ctx context.Context, userID, movieID string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	var tagUser []*TagUser
+	var tagUsers []*TagUser
 	c, err := GetClient().Collection(CollectionTagUser).Find(ctx, bson.D{{"user_id", userObjectID},
 		{"movie_ids", movieObjectID}}, options.Find().SetSort(bson.D{{"updated_at", -1}}))
 	if err != nil {
 		return nil, err
 	}
-	if err := c.All(ctx, &tagUser); err != nil {
+	if err := c.All(ctx, &tagUsers); err != nil {
 		return nil, err
 	}
-	tagIDs := make([]string, len(tagUser))
-	for i, tu := range tagUser {
-		tagIDs[i] = tu.TagID
-	}
-	tags, err := d.QueryTagsByTagID(ctx, tagIDs)
-	if err != nil {
+	if err := d.fillTagUsersWithContent(ctx, tagUsers); err != nil {
 		return nil, err
-	}
-	for i, tag := range tags {
-		tagUser[i].Content = tag.Content
 	}
 
-	return tagUser, nil
+	return tagUsers, nil
 }
 
 func (*TagDao) QueryTagsByTagID(ctx context.Context, tagIDs []string) ([]*Tag, error) {
@@ -192,4 +186,113 @@ func (*TagDao) QueryTagsByTagID(ctx context.Context, tagIDs []string) ([]*Tag, e
 	}
 
 	return tags, nil
+}
+
+func (d *TagDao) QueryTagUsersSortByUseTimes(ctx context.Context, userID string, kMax int64) ([]*TagUser, error) {
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+	var tagUsers []*TagUser
+	match := bson.D{{"$match", bson.D{{"user_id", userObjectID}}}}
+	addField := bson.D{{"$addFields", bson.D{{"use_times", bson.D{{"$size", "movie_ids"}}}}}}
+	sort := bson.D{{"$sort", bson.D{{"use_times", -1}}}}
+	limit := bson.D{{"$limit", kMax}}
+	c, err := GetClient().Collection(CollectionTagUser).Aggregate(ctx,
+		mongo.Pipeline{match, addField, sort, limit})
+	if err != nil {
+		return nil, err
+	}
+	if err := c.All(ctx, &tagUsers); err != nil {
+		return nil, err
+	}
+	if err := d.fillTagUsersWithContent(ctx, tagUsers); err != nil {
+		return nil, err
+	}
+
+	return tagUsers, nil
+}
+
+func (d *TagDao) fillTagUsersWithContent(ctx context.Context, tagUsers []*TagUser) error {
+	tagIDs := make([]string, len(tagUsers))
+	for i, tagUser := range tagUsers {
+		tagIDs[i] = tagUser.TagID
+	}
+	tags, err := d.QueryTagsByTagID(ctx, tagIDs)
+	if err != nil {
+		return err
+	}
+	for i, tag := range tags {
+		tagUsers[i].Content = tag.Content
+	}
+
+	return nil
+}
+
+func (d *TagDao) QueryTagUsersSortByTime(ctx context.Context, userID string, page, offset int64) ([]*TagUser, error) {
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+	var tagUsers []*TagUser
+	c, err := GetClient().Collection(CollectionTagUser).Find(ctx, bson.D{{"user_id", userObjectID}},
+		options.Find().SetSort(bson.D{{"updated_at", -1}}).SetSkip(page*offset).SetLimit(offset))
+	if err := c.All(ctx, &tagUsers); err != nil {
+		return nil, err
+	}
+	if err := d.fillTagUsersWithContent(ctx, tagUsers); err != nil {
+		return nil, err
+	}
+
+	return tagUsers, nil
+}
+
+func (*TagDao) CountTagUsersByUserID(ctx context.Context, userID string) (int64, error) {
+	userObjectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return 0, err
+	}
+	nRecords, err := GetClient().Collection(CollectionTagUser).CountDocuments(ctx, bson.D{{"user_id", userObjectID}})
+	if err != nil {
+		return 0, err
+	}
+
+	return nRecords, nil
+}
+
+func (d *TagDao) QueryTopKTagMovies(ctx context.Context, movieID string, kMax int64) ([]*TagMovie, error) {
+	movieObjectID, err := primitive.ObjectIDFromHex(movieID)
+	if err != nil {
+		return nil, err
+	}
+	var tagMovies []*TagMovie
+	c, err := GetClient().Collection(CollectionTagMovie).Find(ctx, bson.D{{"movie_id", movieObjectID}},
+		options.Find().SetSort(bson.D{{"tagged_times", -1}}).SetLimit(kMax))
+	if err != nil {
+		return nil, err
+	}
+	if err := c.All(ctx, &tagMovies); err != nil {
+		return nil, err
+	}
+	if err := d.fillTagMoviesWithContent(ctx, tagMovies); err != nil {
+		return nil, err
+	}
+
+	return tagMovies, nil
+}
+
+func (d *TagDao) fillTagMoviesWithContent(ctx context.Context, tagMovies []*TagMovie) error {
+	tagIDs := make([]string, len(tagMovies))
+	for i, tagUser := range tagMovies {
+		tagIDs[i] = tagUser.TagID
+	}
+	tags, err := d.QueryTagsByTagID(ctx, tagIDs)
+	if err != nil {
+		return err
+	}
+	for i, tag := range tags {
+		tagMovies[i].Content = tag.Content
+	}
+
+	return nil
 }
