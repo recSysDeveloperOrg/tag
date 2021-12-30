@@ -222,8 +222,12 @@ func (d *TagDao) fillTagUsersWithContent(ctx context.Context, tagUsers []*TagUse
 	if err != nil {
 		return err
 	}
-	for i, tag := range tags {
-		tagUsers[i].Content = tag.Content
+	tagID2TagContent := make(map[string]string)
+	for _, t := range tags {
+		tagID2TagContent[t.ID] = t.Content
+	}
+	for _, tagUser := range tagUsers {
+		tagUser.Content = tagID2TagContent[tagUser.TagID]
 	}
 
 	return nil
@@ -290,8 +294,12 @@ func (d *TagDao) fillTagMoviesWithContent(ctx context.Context, tagMovies []*TagM
 	if err != nil {
 		return err
 	}
-	for i, tag := range tags {
-		tagMovies[i].Content = tag.Content
+	tagID2TagContent := make(map[string]string)
+	for _, t := range tags {
+		tagID2TagContent[t.ID] = t.Content
+	}
+	for _, tagMovie := range tagMovies {
+		tagMovie.Content = tagID2TagContent[tagMovie.TagID]
 	}
 
 	return nil

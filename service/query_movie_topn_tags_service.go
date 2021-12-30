@@ -78,7 +78,7 @@ func (*QueryMovieTopNTagsService) buildResponse(ctx *QueryMovieTopNTagsContext) 
 	ctx.Resp.BaseResp.ErrNo, ctx.Resp.BaseResp.ErrMsg = errCode.Code, errCode.Msg
 	for _, tagMovie := range ctx.Tags {
 		ctx.Resp.Tags = append(ctx.Resp.Tags, &tag.Tag{
-			Id:        tagMovie.MovieID,
+			Id:        tagMovie.TagID,
 			Content:   tagMovie.Content,
 			UpdatedAt: tagMovie.UpdatedAt,
 			NTimes:    tagMovie.TaggedTimes,
